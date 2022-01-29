@@ -9,16 +9,16 @@ jobs:
 
     steps:
     - uses: actions/checkout@v1
-    - name: Set up Python 3.7
+    - name: Set up Python 3.9
       uses: actions/setup-python@v1
       with:
-        python-version: 3.7
+        python-version: 3.9
     - name: Install dependencies
       run: |
         sudo apt-key adv --keyserver keyserver.ubuntu.com --recv-keys E298A3A825C0D65DFD57CBB651716619E084DAB9
         sudo add-apt-repository 'deb https://cloud.r-project.org/bin/linux/ubuntu bionic-cran35/'
         sudo apt-get update
-        sudo apt-get install -y r-base 
+        sudo apt-get install -y r-base
         echo 'source("survival")' > install.R
         python -m pip install --upgrade pip
         python setup.py install
