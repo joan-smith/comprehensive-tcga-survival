@@ -7,7 +7,7 @@ Created on Sun Dec 20 14:43:34 2020
 """
 import pandas as pd
 import os
-import pathlib
+from pathlib import Path
 import scipy
 import glob
 
@@ -26,33 +26,38 @@ from statsmodels.stats.multitest import fdrcorrection
 
 
 #%%
-dropbox_dir = '~/Dropbox/'
-stage_key = dropbox_dir + 'comprehensive-tcga-survival/Multivariate/Stage_key.xlsx'
-grade_key = dropbox_dir + 'comprehensive-tcga-survival/Multivariate/Grade_key.xlsx'
-clinical = dropbox_dir + 'comprehensive-tcga-survival/raw-data/TCGA-CDR-SupplementalTableS1-2019-05-27.xlsx'
-raw_data = dropbox_dir + 'comprehensive-tcga-survival/raw-data/'
+home_dir = os.path.expanduser('~')
+analysis_dir = Path(os.path.join(home_dir, 'comprehensive-tcga-survival-analysis'))
+stage_key = analysis_dir + 'Multivariate/Stage_key.xlsx'
+grade_key = analysis_dir + 'Multivariate/Grade_key.xlsx'
+clinical = analysis_dir + 'raw-data/TCGA-CDR-SupplementalTableS1.xlsx'
+raw_data = analysis_dir + 'raw-data/'
+
+parallel = 10
 #%%
 
-platforms = {'rppa': dropbox_dir + 'comprehensive-tcga-survival/raw-data/TCGA-RPPA-pancan-clean.txt',
-             'cn': dropbox_dir + 'comprehensive-tcga-survival/cn/cn_by_gene.csv',
-             'mirna': dropbox_dir + 'comprehensive-tcga-survival/raw-data/pancanMiRs_EBadjOnProtocolPlatformWithoutRepsWithUnCorrectMiRs_08_04_16.csv',
-             'rnaseq': dropbox_dir + 'comprehensive-tcga-survival/raw-data/EBPlusPlusAdjustPANCAN_IlluminaHiSeq_RNASeqV2.geneExp.tsv',
-             'methylation': (dropbox_dir + 'comprehensive-tcga-survival/raw-data/jhu-usc.edu_PANCAN_merged_HumanMethylation27_HumanMethylation450.betaValue_whitelisted.tsv',
-                             dropbox_dir + 'comprehensive-tcga-survival/raw-data/HumanMethylation450_15017482_v1-2.csv'),
-             'mutations-non-synonymous': dropbox_dir + 'comprehensive-tcga-survival/raw-data/mc3.v0.2.8.PUBLIC.maf'}
+platforms = {'rppa': analysis_dir + 'raw-data/TCGA-RPPA-pancan-clean.txt',
+             'cn': analysis_dir + 'cn/cn_by_gene.csv',
+             'mirna': analysis_dir + 'raw-data/pancanMiRs_EBadjOnProtocolPlatformWithoutRepsWithUnCorrectMiRs_08_04_16.csv',
+             'rnaseq': analysis_dir + 'raw-data/EBPlusPlusAdjustPANCAN_IlluminaHiSeq_RNASeqV2.geneExp.tsv',
+             'methylation': (analysis_dir + 'raw-data/jhu-usc.edu_PANCAN_merged_HumanMethylation27_HumanMethylation450.betaValue_whitelisted.tsv',
+                             analysis_dir + 'raw-data/HumanMethylation450_15017482_v1-2.csv'),
+             'mutations-non-synonymous': analysis_dir + 'raw-data/mc3.v0.2.8.PUBLIC.maf'}
 #%%
 
 tcga_cdr_local = surv.TCGA_CDR_util(clinical)
 cancer_types = tcga_cdr_local.cancer_types()
 
 #%% Prep univariate zscores
-platform_outdir = dropbox_dir + 'comprehensive-tcga-survival/'
-parallel = 35
 for p, rd in platforms.items():
-  pathlib.Path(platform_outdir).mkdir(parents=True, exist_ok=True)
+  platform_outdir = os.path.join(analysis_dir, p)
+  Path(platform_outdir).mkdir(parents=True, exist_ok=True)
   if p == 'rppa':
     rppa.zscores(rd, clinical, platform_outdir, parallel)
   if p == 'cn':
+    raw_cn_data = raw_data + 'broad.mit.edu_PANCAN_Genome_Wide_SNP_6_whitelisted.seg'
+    Path.mkdir(Path(platform_outdir), exist_ok=True, parents=True)
+    cn.prep_data(raw_cn_data, extra_data=analysis_dir + 'raw-data/gencode.v32.annotation.gtf', outdir=platform_outdir, parallel=parallel)
     cn.zscores(rd, clinical, platform_outdir, parallel)
   if p == 'rnaseq':
     rnaseq.zscores(rd, clinical, platform_outdir, parallel)
@@ -66,7 +71,7 @@ for p, rd in platforms.items():
     mutations.zscores(rd, clinical, platform_outdir, parallel)
 
 #%% Prep Metadata
-outdir = dropbox_dir + 'comprehensive-tcga-survival/'
+outdir = analysis_dir
 metadata = {}
 for p, rd in platforms.items():
   if p == 'rppa':
@@ -77,10 +82,6 @@ for p, rd in platforms.items():
     metadata['mirna'] = mirna.metadata(rd, clinical)
   if p == 'rnaseq':
     metadata['rnaseq'] = rnaseq.metadata(rd, clinical)
-  if p == 'methylation-large':
-    methylation_large_data = rd[0]
-    methylation_key = rd[1]
-    metadata['methylation-large'] = methylation.metadata(methylation_large_data, methylation_key, clinical)
   if p == 'methylation':
     methylation_data = rd[0]
     methylation_key = rd[1]
@@ -88,11 +89,10 @@ for p, rd in platforms.items():
   if p == 'mutations':
     metadata['mutations'] = mutations.metadata(rd, clinical)
 
-  pd.DataFrame(metadata).to_csv(os.path.join(outdir, 'patient_counts_cloud.csv'))
+  pd.DataFrame(metadata).to_csv(os.path.join(outdir, 'patient_counts.csv'))
 
 #%% Prep Multivariate
-parallel = 35
-outdir = dropbox_dir + 'comprehensive-tcga-survival/age-stage-grade-sex'
+outdir = analysis_dir + 'age-stage-grade-sex'
 
 multivar = Multivariate(tcga_cdr_local, stage_key, grade_key)
 ctype_multivars = multivar.prep_all_multivar()
@@ -102,7 +102,7 @@ for p, rd in platforms.items():
   if p == 'rppa':
     rppa.zscores(rd, clinical, platform_outdir, parallel, additional_vars=ctype_multivars)
   if p == 'cn':
-    cn.zscores(rd, clinical, platform_outdir, 14, additional_vars=ctype_multivars)
+    cn.zscores(rd, clinical, platform_outdir, parallel, additional_vars=ctype_multivars)
   if p == 'rnaseq':
     rnaseq.zscores(rd, clinical, platform_outdir, parallel, additional_vars=ctype_multivars)
   if p == 'mirna':
@@ -116,6 +116,7 @@ for p, rd in platforms.items():
 
 #%% RNASEQ: Sex, RPSY41, and XIST
 
+outdir = analysis_dir
 rnaseq_data = rnaseq.prep_data(platforms['rnaseq'])
 
 dfs = []
@@ -154,7 +155,7 @@ dfs.to_csv(os.path.join(outdir, 'methylation_sex.csv'), index_label='patient')
 
 #%% FDR correction -- group all platforms together for cancer type
 
-indir = dropbox_dir + '/comprehensive-tcga-survival'
+indir = analysis_dir
 
 def count_sig(g):
   print(g.name)
@@ -189,8 +190,8 @@ outdf.to_csv(os.path.join(outdir, 'significant_corrected_pvals.csv'))
 
 #%% FDR correction -- within cancer type+platform fdr
 
-outdir = dropbox_dir + 'comprehensive-tcga-survival/univariate-fdr'
-indir = dropbox_dir + 'comprehensive-tcga-survival'
+outdir = analysis_dir + 'univariate-fdr'
+indir = analysis_dir
 
 corrected_p_df = {}
 for c in cancer_types:
@@ -212,7 +213,7 @@ outdf.to_csv(os.path.join(outdir, 'significant_corrected_pvals_ctype_0.05.csv'))
 
 #%% stouffer fdr
 
-outdir = dropbox_dir + 'comprehensive-tcga-survival/univariate-fdr'
+outdir = analysis_dir + '/univariate-fdr'
 
 for p in platforms.keys():
   pancan = pd.read_csv(glob.glob(os.path.join(indir, p, '*pancan.csv'))[0], index_col=0)
@@ -231,8 +232,7 @@ for p in platforms.keys():
 
 #%% P53-mutant multivariate zscores
 
-parallel = 35
-outdir = dropbox_dir + 'comprehensive-tcga-survival/p53-mutant-multivariate-zscores'
+outdir = analysis_dir + 'p53-mutant-multivariate-zscores'
 
 mutations_df = mutations.prep_data(platforms['mutations-non-synonymous'])
 p53_muts = {}
@@ -255,8 +255,8 @@ for k in p53_muts.keys():
 print(p53_muts['ACC'].columns)
 
 for p, rd in platforms.items():
-  platform_outdir = os.path.join(outdir, p)
-  pathlib.Path(platform_outdir).mkdir(parents=True, exist_ok=True)
+  platform_outdir = os.path.join(analysis_dir, p)
+  Path(platform_outdir).mkdir(parents=True, exist_ok=True)
   if p == 'rppa':
     rppa.zscores(rd, clinical, platform_outdir, parallel, additional_vars=p53_muts)
   if p == 'cn':

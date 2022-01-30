@@ -11,11 +11,13 @@ setup(name='comprehensive_tcga_survival',
       zip_safe=False,
       setup_requires=['pytest-runner'],
       install_requires=[
+        'numpy~=1.20.3',
         'pandas>=0.25.1',
         'cloudpickle~=1.2.2',
         'dask[dataframe]~=2.9.0',
-        'rpy2==2.9.4',
+        'rpy2==3.4.5',
         'anndata',
+        'wget',
         'matplotlib',
         'scipy>=1.3.1',
         'intervaltree',
@@ -24,7 +26,7 @@ setup(name='comprehensive_tcga_survival',
         'tzlocal',
         'pathos',
         'openpyxl',
-        'biomarker-survival>=0.2.3'
+        'biomarker-survival>=0.2.4'
         ],
       tests_require=['pytest', 'pytest-datafiles'])
 

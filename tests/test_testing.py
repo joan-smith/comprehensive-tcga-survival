@@ -46,13 +46,13 @@ def test_setup():
 
 def get_zscore(variate, coeffs):
   zscore = coeffs.rx(variate, 'z')[0]
-  if type(zscore) == ri.NARealType:
+  if type(zscore) == rpy2.rinterface_lib.sexp.NARealType:
     zscore = np.nan
   return zscore
 
 def get_pvalue(variate, coeffs):
   pvalue = coeffs.rx(variate, 'Pr(>|z|)')[0]
-  if type(pvalue) == ri.NARealType:
+  if type(pvalue) == rpy2.rinterface_lib.sexp.NARealType:
     pvalue = np.nan
   return pvalue
 
